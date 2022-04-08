@@ -1,0 +1,4 @@
+{
+    "appService.defaultWebAppToDeploy": "/subscriptions/45d5d223-de6a-48ac-9454-9be11eafd34b/resourceGroups/smartpropertyadmin/providers/Microsoft.Web/sites/smartpropertyportal",
+    "appService.deploySubpath": "."
+}

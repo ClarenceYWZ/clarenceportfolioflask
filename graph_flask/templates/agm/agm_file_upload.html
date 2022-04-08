@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block content %}
+    <div class="content-section">
+        <form method="POST" action="/agm_instruction_email"  enctype = "multipart/form-data">
+            {{ Pending_form.hidden_tag() }}
+            <fieldset class="form-group">
+                <legend class="border-bottom mb-4">AGM file Upload</legend>
+                <div class="input-group mb-3">
+                Please upload the strata roll excel file
+
+                {{Pending_form.File_uploaded(class="form-control-file",accept="image/*;capture=camera") }}
+                </div>
+
+            </fieldset>
+            <div class="form-group">
+                {{ Pending_form.submit(class="btn btn-outline-info") }}
+            </div>
+        </form>
+    </div>
+
+{% endblock content %}
+{% block add_on_js %}
+<script src="{{ url_for('static', filename='js/mcst_function.js')}}" ></script>
+{% endblock add_on_js %}

@@ -1,0 +1,44 @@
+
+<html>
+<head><meta http-equiv=Content-Type content="text/html; charset=UTF-8">
+<link href="{{ url_for('static', filename='css/bank-change-of-mailing.css')}}" rel="stylesheet">
+</head>
+<body>
+<!--    <div style="position:absolute;left:50%;margin-left:-306px;top:50px;width:612px;height:792px;border-style:outset;overflow:hidden">-->
+    <page size="A4">
+        <div style="position:absolute;left:0px;top:0px " class="letter_main" >
+
+            <div style="position:absolute;left:72.02px;top:150.70px" class="cls_005"><span class="cls_005">
+
+            <p> Dear {{user.Name}} </p>
+
+            <p> The Mcst XXXX - Testing estate is holding an AGM on 20/05/20, 4:00pm and the management would like to invite you the upcoming AGM
+                <br><br>
+                Please follow the following instructions for login to the virtual AGM
+                <br><br>
+                1. Click on the link <a href= "https://web.lumiagm.com/m#/893550461"> Smart Mock AGM </a>
+                <br><br>
+                2. Read the Terms and conditions and click on the declaration
+                <br><br>
+                3. Login with the following credential :
+                <br> SP-No : <b> {{user.sp_id}}</b>
+                <br> Password : <b> {{user.password}}</b>
+                <br><br>
+
+                4. Once login, click on the open in browser under the zoom platform (right hand corner)
+                <br><br>
+                5. Please note that if you will be allocated with a 0 share if you have arrears
+
+            </p>
+            <p>
+                <img style="display:block;" width="738" height="228" class="footer_logo" src="cid:Myimage">
+
+            </p>
+            </div>
+        </div>
+
+
+    </page>
+
+</body>
+</html>

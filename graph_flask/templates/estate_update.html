@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+{% block content %}
+    <div class="content-section">
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+            <fieldset class="form-group">
+                     <option selected disabled >Select Mcst...</option>
+                     {% for Project_item in Project_items %}
+                        <option id="mcst_{{loop.index}}" value={{Project_item.__dict__.get('MCST_no')}}>{{ Project_item.__dict__.get('MCST_no') }}</option>
+                     {% endfor %}
+
+                </select>
+
+                 <div class="input-group mb-3">
+                    <select class="custom-select" id="Project_name">
+                        <option selected disabled>Select Name...</option>
+                            {% for Project_item in Project_items %}
+                                <option id="property_{{loop.index}}" value={{Project_item.__dict__.get('MCST_no')}}>{{ Project_item.__dict__.get('PROPERTY_NAME') }}</option>
+                            {% endfor %}
+                    </select>
+                 </div>
+<!--                <div class="form-check">-->
+<!--                    {{ form.remember(class="form-check-input") }}-->
+<!--                    {{ form.remember.label(class="form-check-label") }}-->
+<!--                </div>-->
+            </fieldset>
+            <div class="form-group">
+                {{ form.submit(class="btn btn-outline-info") }}
+<!--                <small class="text-muted ml-2">-->
+<!--                    <a href="{{ url_for('users.reset_request') }}">Forgot Password?</a>-->
+<!--                </small>-->
+            </div>
+        </form>
+    </div>
+<!--    <div class="border-top pt-3">-->
+<!--        <small class="text-muted">-->
+<!--            Need An Account? <a class="ml-2" href="{{ url_for('users.register') }}">Sign Up Now</a>-->
+<!--        </small>-->
+<!--    </div>-->
+{% endblock content %}
+{% block add_on_js %}
+<script src="{{ url_for('static', filename='js/mcst_function.js')}}" ></script>
+{% endblock add_on_js %}

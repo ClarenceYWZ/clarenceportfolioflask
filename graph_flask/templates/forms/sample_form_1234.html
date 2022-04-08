@@ -1,0 +1,161 @@
+{% extends "css_javascript_layout.html" %}
+
+{% block base_layout %}
+     <div class="col-lg-12 col-md-12 px-1 pt-3 text-center" style="width:auto; max-width: 100%; padding-right:0px">
+
+        <img src={{estate_logo}} class="pb-5 col-sm-12 col-md-6 col-lg-8 img-fluid mt-3 pl-3"  alt="estate_logo">
+<!--        <div>-->
+<!--            {% if mcst_info.MCST_no != "TOP" %}-->
+<!--            <p><strong>-->
+<!--                <h4> <span>MCST PLAN NO. {{mcst_info.MCST_no}}</span></h4>-->
+
+<!--            </strong></p>-->
+<!--            {% endif %}-->
+<!--            <p><strong>-->
+
+<!--                <h4> <span>{{mcst_info.PROPERTY_NAME}}</span> <h4>-->
+<!--            </strong></p>-->
+<!--        </div>-->
+    </div>
+
+
+    <div class="content-section">
+        <form method="POST" action="" id="survey_form">
+            {{ form.hidden_tag() }}
+            <fieldset class="form-group">
+                <div class="card mb-4">
+                    <div class="p-4">
+                        <h3 class="card-title mb-2"><strong><u> MOCK AGM - 1ST ANNUAL GENERAL MEETING (AGM)</u></strong></h3>
+                          <p class="card-text mb-3">
+                            Welcome to 1st Mock AGM registration page
+                            <br><br>Please fill in the necessary details.
+
+<!--                            <br><br>Following precautions will be put in place when we convene the 1st AGM:-.-->
+
+<!--                              <br><br><div class="m-3">1.	Reduce the close proximity interactions of participants and at a venue with improved ventilation. For example, participants will be seated at least a metre apart from one another, and be advised to minimise contact with one another, (e.g. avoid shaking hands and speaking in close distance), venue would be a non-enclosed space for better ventilation;</div>-->
+<!--                              <br><div class="m-3">2.	Temperature screening and health declaration at the registration counter. For example, participants will be denied entry into the AGM if running a temperature of above 37.5°C or show symptoms of respiratory illness or have travelled overseas over the last 14 days before the 1st AGM. For participants who are unwell or unable to attend the meeting, you may appoint a proxy (family member, friend or neighbour) to attend the meeting on behalf;</div>-->
+<!--                            <br><div class="m-3">3.	Participants are required to provide valid contact number at registration, to facilitate any future contact tracing of participants where required;</div>-->
+<!--                            <br><div class="m-3">4.	Reduce the scale of events, where possible. We shall conduct to restrict attendance of only 1 subsidiary proprietor per unit.</div>-->
+
+
+
+<!--                        <br><br>MOH is advising to reduce scale of events to below 250 participants and thus, the Developer and the Management are keen to understand the turn out of the 1st AGM to better prepare for logistic and resources to manage the AGM.-->
+
+<!--                        <br><br>For preparedness of the 1st AGM, we urged all subsidiary proprietors to complete and return this survey by the <strong><u>24th March 2020 </u></strong>-->
+
+                      </p>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="h5">{{ form.Mcst(class="d-none", value= mcst_info.PRINTER_CODE) }}</div>
+                    <div class="h5">1. {{ form.full_name.label(class="form-control-label") }} </div>
+                    {% if form.full_name.errors %}
+                    {{ form.full_name(class="form-control form-control-lg is-invalid" ,value= user_info.subsidiary_proprietors) }}
+                        <div class="invalid-feedback">
+                            {% for error in form.contact_no.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        {{ form.full_name(class="form-control form-control-lg",placeholder="Please fill in your full name, as in NRIC." ,value= user_info.subsidiary_proprietors) }}
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <div class="h5">2. {{ form.contact_no.label(class="form-control-label", value=user_info.contact_no) }}</div>
+                    {% if form.contact_no.errors %}
+                        {{ form.contact_no(class="form-control form-control-lg is-invalid") }}
+                        <div class="invalid-feedback">
+                            {% for error in form.contact_no.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        {{ form.contact_no(class="form-control form-control-lg",placeholder="Please key in your mobile number." , value=user_info.contact_no) }}
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <div class="h5">3. {{ form.email.label(class="form-control-label", value=user_info.email)}}</div>
+                    {% if form.email.errors %}
+                        {{ form.email(class="form-control form-control-lg is-invalid") }}
+                        <div class="invalid-feedback">
+                            {% for error in form.email.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        {{ form.email(class="form-control form-control-lg",placeholder="Please key your email.", value=user_info.email) }}
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <div class="h5 form-control-label"> 4. Blk Unit No </div>
+
+                    {% if form.blk.errors %}
+                        <div class="row">
+                            <div class="col">
+                                {{ form.blk(class="form-control form-control-lg is-invalid", value=user_info.blk) }}
+                                <div class="invalid-feedback">
+                                {% for error in form.blk.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                                </div>
+                            </div>
+<!--                            <div class="col">-->
+<!--                                {{ form.floor(class="form-control form-control-lg is-invalid") }}-->
+<!--                            </div>-->
+                            <div class="col">
+                                {{ form.unit_no(class="form-control form-control-lg is-invalid", value=user_info.unit) }}
+                            </div>
+                        </div>
+
+                    {% else %}
+                        <div class="row">
+
+                            <div class="col">
+                                {{ form.blk(class="form-control form-control-lg",placeholder="Blk" , value=user_info.blk) }}
+                            </div>
+                            <div class="col">
+                                {{ form.floor(class="form-control form-control-lg d-none",placeholder="Level") }}
+                            </div>
+                            <div class="col">
+                                {{ form.unit_no(class="form-control form-control-lg",placeholder="Unit" , value=user_info.unit) }}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div id="proxy_option" class="form-group" >
+                    <div class="mb-2" ><strong class="h5"> Please select proxy/attendance option</strong>
+
+                    </div>
+                    {{ form.attending(class="", style="list-style-type:none")}}
+                </div>
+                <select class="custom-select mb-4 " name="Mcst_func">
+                     <option selected disabled>Select Owned Units...</option>
+                     {% for own_unit in own_units %}
+                         <option id= "{{own_unit.agm_id}}" value={{own_unit.agm_id}}> {{own_unit.unit_account}} {{own_unit.subsidiary_proprietors}} </option>
+                     {% endfor %}
+                </select>
+                <select class="custom-select mb-4 " name="Mcst_func">
+                     <option selected disabled>Select Proxy Units...</option>
+                     {% for available_unit in available_units %}
+                         <option id= "{{available_unit.agm_id}}" value={{available_unit.agm_id}}>{{available_unit.unit_account}}</option>
+                     {% endfor %}
+                </select>
+
+            </fieldset>
+            <div class="form-group">
+                {{ form.submit(class="btn btn-outline-info btn-lg col-12") }}
+
+            </div>
+        </form>
+    </div>
+
+{% endblock base_layout %}
+
+
+
+
+{% block add_on_js %}
+<script src="{{ url_for('static', filename='js/form_template.js')}}"> </script>
+{% endblock add_on_js %}
