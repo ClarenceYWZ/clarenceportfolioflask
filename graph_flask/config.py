@@ -40,7 +40,7 @@ SCOPE = [
 AUTH_ENDPOINT = '/oauth2/v2.0/authorize'
 TOKEN_ENDPOINT = '/oauth2/v2.0/token'
 ALLOW_REDIRECT_PATH = ['https://smartsgportal.azurewebsites.net/',
-# 'http://localhost:3000/',   
+'http://localhost:3000/',   
 'https://smartpropertyportal.azurewebsites.net/']
     
 RESOURCE = 'https://graph.microsoft.com/'
@@ -66,7 +66,9 @@ class Config:
     MAIL_PORT = '587'
     MAIL_USE_TLS = True
     MAIL_USE_SSL = False
-    MAIL_USERNAME = os.environ.get('EMAIL_USER')
-    MAIL_PASSWORD = os.environ.get('EMAIL_PASS')
+    # MAIL_USERNAME = os.environ.get('EMAIL_USER')
+    # MAIL_PASSWORD = os.environ.get('EMAIL_PASS')
+    MAIL_USERNAME = os.environ.get('CLARENCE_EMAIL_USER')
+    MAIL_PASSWORD = os.environ.get('CLARENCE_EMAIL_PASS')
     # SESSION_TYPE = "filesystem"
 # 

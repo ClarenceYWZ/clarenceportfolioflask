@@ -89,21 +89,31 @@ def apitest():
     # email_list =[]
     crpyter = Fernet(os.environ.get('mcst_key'))
     attendance_id = crpyter.encrypt(str(1).encode('utf-8')).decode('utf-8')    
-    msg = Message( recipients=["clarence.yeo@smartproperty.sg"], sender="administrator@smartproperty.sg"
-    )    
-    msg.subject = f'OUTCOME-BASED CONTRACTING (OBC) FOR SECURITY SERVICES WEBINAR'
+    # msg = Message( recipients=["clarence.yeo@smartproperty.sg"], sender="administrator@smartproperty.sg"
+    # )    
+    
     for project_item in smart_project_listing.query.filter(smart_project_listing.TERMINATED_DATE >= date.today()).all():
         for site_staff_item in project_item.site_staff_list:
             print (site_staff_item)
             email_encrypt = crpyter.encrypt(site_staff_item.site_email.encode('utf-8')).decode('utf-8')    
             url_link = f'https://smartsgportal.azurewebsites.net/#/public/attendancechecklist/{attendance_id}/{email_encrypt}'
+            # msg = Message( recipients=[site_staff_item.site_email], sender="clarence.yeo@smartproperty.sg")
+            msg = Message( recipients=["clarence.yeo@smartproperty.sg"], sender="clarence.yeo@smartproperty.sg")
+            msg.subject = f'OUTCOME-BASED CONTRACTING (OBC) FOR SECURITY SERVICES WEBINAR'
             msg.html = template_html.replace("***url***", url_link)
-            # mail.send(msg)
+            mail.send(msg)
         break
+        
     for user_item in User.query.join(job_title_role).filter(User.termination_date == None, job_title_role.Department == "Operations").all():
             print (user_item)
             email_encrypt = crpyter.encrypt(user_item.email.encode('utf-8')).decode('utf-8')    
             url_link = f'https://smartsgportal.azurewebsites.net/#/public/attendancechecklist/{attendance_id}/{email_encrypt}'
+            # msg = Message( recipients=[user_item.email], sender="clarence.yeo@smartproperty.sg")
+            msg = Message( recipients=["clarence.yeo@smartproperty.sg"], sender="clarence.yeo@smartproperty.sg")
+            msg.subject = f'OUTCOME-BASED CONTRACTING (OBC) FOR SECURITY SERVICES WEBINAR'
+            msg.html = template_html.replace("***url***", url_link)
+            mail.send(msg)
+            break
 
     # testing = microsoft_graph_api()
     # result = testing.get_user_id_by_email("clarence.yeo@smartproperty.sg")
@@ -660,15 +670,15 @@ def attendancerecords():
     crpyter = Fernet(os.environ.get('mcst_key'))
     meeting_id = crpyter.decrypt(request_id.encode('utf-8')).decode('utf-8')
     user_email = crpyter.decrypt(user_email_encrypt.encode('utf-8')).decode('utf-8')
-    
-    site_staff_id = site_staff.query.filter(site_staff.site_email == user_email).first().id
     attendance_register_selected = attendance_register.query.filter(attendance_register.meeting_id == meeting_id ,
-    attendance_register.hq_user_email == user_email).first() if "smartproperty.sg" in user_email else attendance_register.query.filter(attendance_register.meeting_id == meeting_id ,
-    attendance_register.site_staff_id == site_staff_id).first()
+    attendance_register.hq_user_email == user_email).first() if "smartproperty.sg" in user_email else attendance_register.query.join(
+            site_staff).filter(attendance_register.meeting_id == meeting_id ,
+            site_staff.site_email == user_email).first()
     if not attendance_register_selected : 
         if "smartproperty.sg" in user_email: 
             attendance_register_selected= attendance_register(meeting_id= meeting_id, hq_user_email=user_email)
         else: 
+            site_staff_id = site_staff.query.filter(site_staff.site_email == user_email).first().id
             attendance_register_selected= attendance_register(meeting_id= meeting_id, site_staff_id=site_staff_id)
         db.session.add(attendance_register_selected)
         db.session.commit()
