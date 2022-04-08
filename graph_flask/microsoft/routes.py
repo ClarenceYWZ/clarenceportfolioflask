@@ -49,7 +49,7 @@ def graphapitest():
     # print(file_pd)
     report_date = datetime(2022,2,28)
     test = printing_class(report_date=report_date)
-    test.import_all_monthly_report()
+    # test.import_all_monthly_report()
     
     return ({})
 
