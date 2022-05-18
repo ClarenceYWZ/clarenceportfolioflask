@@ -60,4 +60,4 @@ jobs:
         with:
           app-name: 'clarenceprofileflask'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D0750A8D90124656A61CE8FBADD18E66 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_888A179E4B5C470FBCD421EA7AB72354 }}
