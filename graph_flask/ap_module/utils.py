@@ -1,11 +1,13 @@
 import os
+import re
 import pandas as pd
 import keyboard
 import time
 from datetime import datetime,date
 from zipfile import ZipFile
+from fuzzywuzzy import fuzz
 from graph_flask.main.utils import convert_db_to_pandas
-from graph_flask.models import smart_project_listing
+from graph_flask.models import db, smart_project_listing,vendors_details,vendors_invoice,vendors_payment, vendors_name_match
 
 class mcmanager_extract:
 
@@ -22,7 +24,7 @@ class mcmanager_extract:
 
         return '\n'.join(mcdat_str_list)
 
-    def join_all_mcst_mcdat(self, user):
+    def join_all_mcst_mcdat(self, user=None):
 
         if user:
             query_list = smart_project_listing.query.filter(smart_project_listing.TERMINATED_DATE >= date.today(), 
@@ -45,7 +47,7 @@ class mcmanager_extract:
                                 '"Zsysz-hid-80" "FileoutAll" "" "" "" "",'])
         return f'{all_mcst_mcdat}\n{mcdat_customized_end}'
 
-    def save_mcdat_file(self, user):
+    def save_mcdat_file(self, user=None):
       with open('C:\Mcst10\mc.dat','w') as f:
            f.write(self.join_all_mcst_mcdat(user))
 
@@ -212,40 +214,127 @@ class mcmanager_extract:
     def extract_ap_historical(self, historical_text_file):
 
         colspecs = [(0,11), (11,24),(24,28),(28,37),(37,46),(46,82),(82,95),(95,109),(109,-1)] 
-        colNames = ['Supplier', 'Invoice', 'Type', 'Date', 'Due-date','Description', 'Payment-ref', 'amount','net-amount']
+        vendor_colspecs = [(0,11), (11,46), (46,-1)] 
+        colNames = ['Supplier', 'invoice_ref', 'Type', 'invoice_date', 'Due-date','payment_description', 'Payment-ref', 'invoice_amt','net-amount']
+        vendor_colNames = ['Supplier', 'Supplier_full_name', 'payment_description']
         payment_pd = pd.read_fwf(historical_text_file, colspecs=colspecs, names=colNames)
-        # return payment_pd
-        cond1 = payment_pd['amount'].fillna('').str.contains(r'\d+\-?')
-        cond2 = (payment_pd['Description'].fillna('') !='') & (payment_pd['Due-date'].fillna('') == '')
-        cond3 = (payment_pd['Supplier'].fillna('').str.contains(r'^\S+[^:]\S+$')) & (payment_pd['Description'].fillna('') == '')
-        
+        vendor_payment_pd = pd.read_fwf(historical_text_file, colspecs=vendor_colspecs, names=vendor_colNames)
+        mcst_no = vendor_payment_pd[vendor_payment_pd["payment_description"].notna()]["payment_description"].str.extract(r'(\d+)').iloc[0].astype(int)[0]
+        cond1 = payment_pd['invoice_amt'].fillna('').str.contains(r'\d+\-?')
+        cond2 = (payment_pd['payment_description'].fillna('') !='') & (payment_pd['Due-date'].fillna('') == '') & \
+                    (payment_pd['Supplier'].str.contains(r'^[^:]+$'))
+        cond3 = (payment_pd['Supplier'].fillna('').str.contains(r'^\S+[^:]\S*$')) & (payment_pd['payment_description'].fillna('') == '')
         payment_pd = payment_pd[cond1 | cond2 | cond3]
-        payment_pd.loc[cond3, 'Supplier'] = payment_pd.loc[cond3,['Invoice','Type','Date','Due-date']].fillna('').agg(''.join, axis=1)
+        cond_duplicate_vendor_name = vendor_payment_pd.loc[cond3,'Supplier_full_name'].duplicated()
+        vendor_payment_pd.loc[cond3 & cond_duplicate_vendor_name,'Supplier_full_name'] =vendor_payment_pd.loc[cond3 & cond_duplicate_vendor_name,['Supplier_full_name','Supplier']].fillna('').apply(' - '.join, axis=1)
+        payment_pd.loc[cond3, 'Supplier'] = vendor_payment_pd.loc[cond3,'Supplier_full_name']
         payment_pd['Supplier'] = payment_pd['Supplier'].ffill()
         payment_pd = payment_pd[~cond3]
-        payment_pd['Invoice'] = payment_pd['Invoice'].ffill()
-        payment_pd['Type'] = payment_pd['Type'].ffill()
+        ffill_columns = ['invoice_ref','Type','invoice_date','Payment-ref']
+        payment_pd[ffill_columns] = payment_pd[ffill_columns].ffill()
+        payment_pd[['invoice_amt', 'net-amount']] = payment_pd[['invoice_amt', 'net-amount']].fillna(0)
         payment_pd = payment_pd.fillna('')
-        payment_pd = payment_pd.groupby(['Supplier','Invoice','Type'])[
-            'Date','Due-date','Description','Payment-ref','amount','net-amount'].agg({
-                'Description': lambda x :" ".join(x),
-                'Date' : lambda x :"".join(x),
+        payment_pd['invoice_amt'] = payment_pd['invoice_amt'].apply(lambda x : str(x).replace(',', ''))
+        payment_pd.loc[payment_pd['invoice_amt'].str.endswith("-"),'invoice_amt'] = payment_pd.loc[payment_pd['invoice_amt'].str.endswith("-"),'invoice_amt'].apply(lambda x : f'-{x.replace("-","")}')
+        payment_pd['invoice_amt'] = payment_pd['invoice_amt'].astype(float)
+        payment_pd = payment_pd.groupby(['Supplier','invoice_ref','Type','Payment-ref','invoice_date'])[
+            'Due-date','payment_description','invoice_amt'].agg({
+                'payment_description': lambda x :" ".join(x),
                 'Due-date' : lambda x :"".join(x),
-                'Payment-ref' : lambda x :"".join(x),
-                'amount' : lambda x :"".join(x),
-                'net-amount' : lambda x :"".join(x),
+                'invoice_amt' : 'sum',
+                # 'net-amount' : 'sum',
         })
         payment_pd = payment_pd.reset_index()
-        payment_pd[['Date','Due-date']] = payment_pd[['Date','Due-date']].apply(pd.to_datetime)
+        
+        # payment_pd[['Date','Due-date']] = payment_pd[['Date','Due-date']].apply(pd.to_datetime)
+        payment_pd['invoice_date'] = payment_pd['invoice_date'].apply(lambda x :  datetime.strptime(x, "%d/%m/%y") )
         invoice_pd = payment_pd.loc[payment_pd['Type'] == "IN"]
-        payment_pd = payment_pd.loc[payment_pd['Type'] != "IN"].groupby(['Supplier', 'Payment-ref'])['Invoice', 'Date'].agg({
-            'Invoice': lambda x : ','.join(x),
-            'Date': lambda x : x,
+        payment_pd = payment_pd.loc[payment_pd['Type'] != "IN"].groupby(['Supplier', 'Payment-ref','invoice_ref','invoice_date'])['invoice_amt','payment_description'].agg({
+            # 'Date': lambda x : x,
+            'invoice_amt': 'sum',
+            'payment_description': lambda x : "".join(x),
         })
-        return [invoice_pd,payment_pd]
-    
+        payment_pd = payment_pd.reset_index()
+        return [int(mcst_no), invoice_pd,payment_pd]
 
+    def import_payment_historical_to_database(self, historical_text_file):
+        mcst_no, invoice_pd,payment_pd = self.extract_ap_historical(historical_text_file=historical_text_file)
+        invoice_list_obj = []
+        for _, invoice_item in invoice_pd.iterrows():
+            supplier_name = invoice_item['Supplier']
+            supplier = vendors_details.query.filter_by(vendor_name = supplier_name).first()
+            if not supplier : 
+                supplier = vendors_details(vendor_name = supplier_name)
+                db.session.add(supplier)
+                db.session.commit()
+            invoice_obj = vendors_invoice.query.filter_by(vendor_name = supplier.id, MCST_id = mcst_no, 
+                            invoice_date = invoice_item['invoice_date'],
+                            invoice_ref =invoice_item['invoice_ref'] ,
+                            invoice_amt =invoice_item['invoice_amt'] ,
+                            payment_description =invoice_item['payment_description'] ).first()
+            if not invoice_obj :
+                invoice_obj = vendors_invoice(vendor_name = supplier.id, MCST_id = mcst_no, 
+                            invoice_date = invoice_item['invoice_date'],
+                            invoice_ref =invoice_item['invoice_ref'] ,
+                            invoice_amt =invoice_item['invoice_amt'] ,
+                            payment_description =invoice_item['payment_description'] )
+                invoice_list_obj.append(invoice_obj)
+        db.session.bulk_save_objects(invoice_list_obj)
+        db.session.commit()
+        payment_list_obj = []
+        for  _, payment_item in payment_pd.iterrows():
+            supplier_name=payment_item['Supplier']
+            invoice_ref=payment_item['invoice_ref']
+            invoice = vendors_invoice.query.join(vendors_details).filter(vendors_details.vendor_name == supplier_name,
+             vendors_invoice.MCST_id == mcst_no,vendors_invoice.invoice_ref == invoice_ref ).first()
+            if not invoice : 
+                print (supplier_name, invoice_ref )
+                continue
+            if re.findall(string=payment_item['Payment-ref'] ,pattern=r'([\D^\s]{3,4}\s[\d]{6})'):
+                payment_type = "cheque"
+            elif re.findall(string=payment_item['Payment-ref'] ,pattern=r'(GIRO|IBG)'):
+                payment_type = "giro"
+            else : 
+                payment_type = "adjustment"
+            payment_obj = vendors_payment.query.filter_by(invoice_id= invoice.id , payment_reference=  payment_item['Payment-ref'], 
+                            payment_date=payment_item['invoice_date'],
+                            payment_type=payment_type,
+                            payment_amount=payment_item['invoice_amt']).first()                            
+            if not payment_obj : 
+                payment_obj = vendors_payment(invoice_id= invoice.id , payment_reference=  payment_item['Payment-ref'], 
+                            payment_date=payment_item['invoice_date'],
+                            payment_type=payment_type,
+                            payment_amount=payment_item['invoice_amt'] )                            
+                payment_list_obj.append(payment_obj)
+        db.session.bulk_save_objects(payment_list_obj)
+        db.session.commit()
 
+    def import_all_mcst_payment_to_database(self, file_folder_path):
+
+        for root, dirs, files in os.walk(file_folder_path):
+            for file in files :
+                print (file)
+                self.import_payment_historical_to_database(os.path.join(root, file))
+
+def vendor_ap_name_match():
+    vendor_match_pd = pd.read_sql(vendors_name_match.query.filter(vendors_name_match.vendor_id == None).statement, con=db.session.bind)
+    vendor_detail_pd = pd.read_sql(vendors_details.query.statement, con=db.session.bind)
+    for index,  vendor_name in vendor_match_pd.iterrows():
+        
+        match_con = vendor_detail_pd['vendor_name'].apply(lambda x : fuzz.ratio(x,vendor_name['vendor_ap_name']))
+        vendor_name_match_obj = vendors_name_match.query.get(vendor_name['id'])
+        
+        if not pd.isnull(match_con.max()) and match_con.max()>90: 
+            vendor_id = int(vendor_detail_pd.loc[match_con.idxmax()]['id'])
+            
+        else :
+            vendor_obj =vendors_details(vendor_name=vendor_name['vendor_ap_name'])
+            db.session.add(vendor_obj)
+            db.session.commit()
+            vendor_detail_pd = pd.read_sql(vendors_details.query.statement, con=db.session.bind)
+            vendor_id = vendor_obj.id
+        vendor_name_match_obj.vendor_id = vendor_id
+    db.session.commit()    
 if __name__ == "__main__":
     # mcst_data = pd.read_excel(r"C:\Users\Clarence Yeo\Smart Property Management (S) Pte Ltd\SMART HQ ACCOUNTS - SMART HQ ACCOUNTS\2759 - MEDON SPRING\STARTUP\STRATA ROLL\ImpSPMast1.xlsx").replace("-",0).fillna("").round(2)
     mcst_data = pd.read_excel(

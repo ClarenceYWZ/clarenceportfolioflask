@@ -11,8 +11,13 @@ zoom_client_secret = os.environ.get('zoom_client_secret')
 
 CLIENT_ID = os.environ.get('CLIENT_ID')
 CLIENT_SECRET = os.environ.get('CLIENT_SECRET')
-
-
+linkedin_client_id = os.environ.get('linkedin_client_id')
+linkedin_client_secret = os.environ.get('linkedin_client_secret')
+GOOGLE_CLIENT_ID = os.environ.get("google_client_id")
+GOOGLE_CLIENT_SECRET = os.environ.get("google_client_secret")
+GOOGLE_DISCOVERY_URL = (
+    "https://accounts.google.com/.well-known/openid-configuration"
+)
 
 REDIRECT_PATH = "/getAToken"  # Used for forming an absolute URL to your redirect URI.
                               # The absolute URL must match the redirect URI you set
@@ -27,8 +32,10 @@ SCOPE = [
          "Sites.ReadWrite.All",
          "User.ReadWrite.All",
          "User.ReadBasic.All",
-         ]
-
+]
+# linkedin_redirect_uri= parse.quote(f'http://localhost:3000')
+linkedin_redirect_uri= f'http://localhost:5000/linkedinauthorized'
+linkedin_SCOPE =f"r_liteprofile%20r_emailaddress%20w_member_social"
 
 
 # AUTHORITY_URL ending determines type of account that can be authenticated:
@@ -70,5 +77,5 @@ class Config:
     # MAIL_PASSWORD = os.environ.get('EMAIL_PASS')
     MAIL_USERNAME = os.environ.get('CLARENCE_EMAIL_USER')
     MAIL_PASSWORD = os.environ.get('CLARENCE_EMAIL_PASS')
-    # SESSION_TYPE = "filesystem"
+    SESSION_TYPE = "filesystem"
 # 

@@ -45,7 +45,6 @@ def graphapitest():
     # testing = folder_graph_api()
     # file_pd = testing.get_lastest_excel_file_to_pandas(site_id=testing.invoice_site_id, list_id=testing.stationary_list_id, 
     # file_path=r"PHOTOCOPIER FRANKING REPORT\FRANKING\2022\03 - MAR-22", search_file_name=".csv")
-    
     # print(file_pd)
     report_date = datetime(2022,2,28)
     test = printing_class(report_date=report_date)

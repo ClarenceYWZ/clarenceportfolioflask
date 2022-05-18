@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager
 from flask_mail import Mail
+from datetime import timedelta
 from graph_flask.config import Config
 from flask_security import SQLAlchemySessionUserDatastore, Security
 from flask_principal import Principal
@@ -31,6 +32,8 @@ def create_app(config_class=Config):
     CORS(app, support_credentials=True)
     app.config.from_object(Config)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    app.config['SESSION_COOKIE_NAME'] = 'google-login-session'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=5)
     app.secret_key = os.urandom(24)
     db.init_app(app)
     ma.init_app(app)

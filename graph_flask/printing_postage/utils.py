@@ -198,7 +198,7 @@ class printing_class():
 
         for filename in folder_graph.get_files_name_in_folder(site_id=folder_graph.invoice_site_id
         , list_id=folder_graph.stationary_list_id,file_path=toppan_initial_folder):
-            if os.path.splitext(filename)[1] == ".XLSX" : 
+            if os.path.splitext(filename)[1].upper() == ".XLSX" : 
                 toppan_report_pd = folder_graph.get_file_to_pandas(sheet_name="SMART", header=2, skipfooter=1,site_id=folder_graph.invoice_site_id
         , list_id=folder_graph.stationary_list_id, file_path_name= os.path.join(toppan_initial_folder, filename))                
                 toppan_summary_pd = folder_graph.get_file_to_pandas(sheet_name="BILLING SUMMARY", header=21,site_id=folder_graph.invoice_site_id

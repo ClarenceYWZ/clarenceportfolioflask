@@ -26,6 +26,9 @@ def _load_cache():
 
     return cache
 
+
+
+
 def _get_token_on_behalf(request_data):
     # cache = _load_cache() 
     
@@ -266,7 +269,7 @@ class group_permission_graph_api(microsoft_graph_api):
         try:
             for graph_user in graph_users['value']:
                 if not 'email' in  graph_user['grantedTo']['user']:
-                    return
+                    continue
                 if graph_user['grantedTo']['user']['email'] == user_detail.email:
                     return graph_user
         except:

@@ -1,7 +1,8 @@
 import json
 from dataclasses import dataclass
+from pickle import TRUE
 import pandas as pd
-from sqlalchemy import desc
+from sqlalchemy import desc, func, literal_column,select,or_,and_
 from sqlalchemy.ext.hybrid import hybrid_property
 from graph_flask import db, login_manager, ma, bcrypt
 from flask_login import UserMixin, current_user
@@ -275,6 +276,9 @@ class smart_project_listing(db.Model):
     paynow_list = db.relationship('paynow_data', uselist = False, backref='projectDetails')
     site_staff_list = db.relationship('site_staff', backref='projectDetails', lazy='dynamic')
     bank_account_list = db.relationship('bank_accounts', backref='projectDetails', lazy='dynamic')
+    vendor_invoice_list = db.relationship('vendors_invoice', backref='projectDetails', lazy='dynamic')
+     
+
     # financialYearList = db.relationship('financialYear', backref='projectDetails', lazy='dynamic')
     # agmList = db.relationship('agmList', backref='projectDetails', lazy='dynamic')
     # agmBudgetList = db.relationship('budget', backref='projectDetails', lazy='dynamic')
@@ -343,6 +347,31 @@ class smart_project_listing(db.Model):
         return {
             'bank_accounts':  [bank_account_obj.to_json_details() for bank_account_obj in self.bank_account_list]
         }
+
+    def outstanding_invoices(self, as_on_period=date.today()):
+        payment_invoice =  db.session.query(vendors_payment.invoice_id, db.func.sum(vendors_payment.payment_amount).label("payment_amount")).group_by(
+                            vendors_payment.invoice_id).filter(vendors_payment.payment_date <= as_on_period).cte("payment")
+        vendor_invoices = db.session.query(payment_invoice.c.payment_amount ,vendors_invoice, vendors_details.vendor_name.label('name')).\
+                            select_from(vendors_invoice).\
+                            outerjoin(payment_invoice,payment_invoice.c.invoice_id== vendors_invoice.id).\
+                            join(vendors_details,vendors_invoice.vendor_name==vendors_details.id).\
+                            filter(and_(vendors_invoice.MCST_id==self.PRINTER_CODE,
+                            or_(func.round(payment_invoice.c.payment_amount+vendors_invoice.invoice_amt,2)!=0,
+                            payment_invoice.c.payment_amount==None),
+                            vendors_invoice.invoice_date <= as_on_period)).\
+                            cte('vendor_invoices')
+        return db.session.query(vendor_invoices).all()
+    
+
+    def outstanding_vendor_amount(self, as_on_period=date.today()):
+        return [(outstanding_invoice.name, outstanding_invoice.invoice_date, outstanding_invoice.invoice_ref ,outstanding_invoice.payment_amount if outstanding_invoice.payment_amount else 0  + outstanding_invoice.invoice_amt)
+          for outstanding_invoice in self.outstanding_invoices(as_on_period=as_on_period)]
+
+    def total_outstanding_vendor_amount(self, as_on_period=date.today()):
+
+        return round(sum([(outstanding_invoice.payment_amount if outstanding_invoice.payment_amount else 0   + outstanding_invoice.invoice_amt)
+          for outstanding_invoice in self.outstanding_invoices(as_on_period=as_on_period)]),2)
+
 
     def to_info_json(self):
         json_dict = self.to_json()
@@ -654,46 +683,111 @@ class vendors_details(db.Model):
     vendor_name =  db.Column(db.String(120))
     vendor_uen = db.Column(db.String(120))
     vendor_address= db.Column(db.String(120))
-    vendor_email  = db.Column(db.String(120), nullable=False)
+    vendor_email  = db.Column(db.String(120))
     vendor_phone= db.Column(db.String(120))
     vendor_bank_account= db.Column(db.String(120))
     vendor_paynow=  db.Column(db.String(120))
-    vendor_payment_list = db.relationship('vendors_payment_list', backref='vendor_details', lazy='dynamic')
     gst_registered = db.Column(db.Boolean)
+    vendor_name_match = db.relationship('vendors_name_match', backref='vendor_details', lazy='dynamic')
+    
     def __repr__(self):
-        return f'vendor({self.MCST_id},{self.vendor_name})'
+        return f'vendor({self.id},{self.vendor_name})'
 
+    def outstanding_invoices(self, as_on_period= date.today() , mcst_no= None):
+        if mcst_no :
+            return [invoice for invoice in self.vendor_invoice_list.all() if invoice.outstanding_amt(as_on_period) > 0 and invoice.MCST_id == mcst_no]
+        else:
+            
+            return [invoice for invoice in db.session.query(vendors_details,vendors_invoice)]
 
-class vendors_payment_list(db.Model):
+    def search_payment_log(self, payment_ref = None, payment_amount=None, mcst_no =None):
+        
+        payment_ref_group =  db.session.query(vendors_details.vendor_name, 
+                            vendors_invoice.MCST_id, vendors_payment.payment_reference,
+                            vendors_payment.payment_amount.label("payment_amount"),
+                            vendors_invoice.invoice_ref).\
+                            select_from(vendors_payment).\
+                            join(vendors_invoice).\
+                            join(vendors_details).\
+                            filter(vendors_details.id==self.id).\
+                            cte('vendor_payment_ref')
+        group_ref_group =   db.session.query(db.func.sum(payment_ref_group.c.payment_amount).label('payment_amount'),
+                            db.func.string_agg(payment_ref_group.c.invoice_ref, literal_column("','")).label('invoice_ref_list'),
+                            payment_ref_group.c.payment_reference,
+                            payment_ref_group.c.vendor_name,
+                            payment_ref_group.c.MCST_id).\
+                            group_by(payment_ref_group.c.payment_reference,payment_ref_group.c.vendor_name,
+                            payment_ref_group.c.MCST_id).\
+                            cte("group_ref_group")
+                            
+        if payment_ref : group_ref_group  =db.session.query(group_ref_group).filter(group_ref_group.c.payment_reference==payment_ref).cte("vendor_payment_ref_filter_ref")
+        if payment_amount : group_ref_group  =db.session.query(group_ref_group).filter(group_ref_group.c.payment_amount==payment_amount).cte("vendor_payment_ref_filter_amt")
+        if mcst_no : group_ref_group  =db.session.query(group_ref_group).filter(group_ref_group.c.MCST_id== mcst_no).cte("vendor_payment_ref_filter_mcst")
+
+        return db.session.query(group_ref_group).all()
+        
+class vendors_name_match(db.Model):        
+    id = db.Column(db.Integer, primary_key=True)
+    vendor_ap_name =  db.Column(db.String(120))
+    vendor_id = db.Column(db.Integer,db.ForeignKey('vendors_details.id'), nullable = True)
+    vendor_invoice_list = db.relationship('vendors_invoice', backref='vendor_name_match', lazy='dynamic')
+    vendor_purchase_list = db.relationship('vendors_purchase', backref='vendor_name_match', lazy='dynamic')
+
+class vendors_purchase(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
-    vendor_name = db.Column(db.Integer,db.ForeignKey('vendors_details.id'), nullable = False)
     MCST_id = db.Column(db.Integer, db.ForeignKey('smart_project_listing.PRINTER_CODE'), nullable=False)
-    invoice_ref = db.Column(db.String(120))
-    invoice_amt = db.Column(db.String(120))
-    invoice_gst = db.Column(db.String(120))
-    service_ref = db.Column(db.String(120))
-    payment_gl_list = db.relationship('vendors_gl_list', backref = 'invoice_info', lazy = 'dynamic')
-    payment_description = db.Column(db.String(120), nullable=False)
+    vendor_name = db.Column(db.Integer,db.ForeignKey('vendors_name_match.id'), nullable = False)
+    approved_date = db.Column(db.Date)
+    clearance_date = db.Column(db.Date)
     contract_ref= db.Column(db.String(120))
     ad_hoc_ref = db.Column(db.String(120))
-    invoice_date = db.Column(db.String(120))
-    payment_reference=  db.Column(db.String(120))
-    payment_type = db.Column(db.String(120))
-    payment_date = db.Column(db.String(120))
-    approved_date = db.Column(db.String(120))
-    clearance_date = db.Column(db.String(120))
+    invoice_list = db.relationship('vendors_invoice', backref = 'purchase_info', lazy = 'dynamic')
 
-
-
-    def __repr__(self):
-        return f'vendor_payment({self.MCST_id},{self.vendor_name},{self.invoice_ref})'
-
-
-class vendors_gl_list(db.Model):
+class vendors_invoice(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
-    vendor_payment_id = db.Column(db.Integer,db.ForeignKey('vendors_payment_list.id'))
+    vendor_id = db.Column(db.Integer,db.ForeignKey('vendors_name_match.id'), nullable = False)
+    purchase_id = db.Column(db.Integer,db.ForeignKey('vendors_purchase.id'))
+    MCST_id = db.Column(db.Integer, db.ForeignKey('smart_project_listing.PRINTER_CODE'), nullable=False)
+    invoice_ref = db.Column(db.String(120))
+    invoice_date = db.Column(db.Date)
+    invoice_amt = db.Column(db.Float)
+    invoice_gst = db.Column(db.String(120))
+    service_ref = db.Column(db.String(120))
+    invoice_gl_list = db.relationship('vendors_gl', backref = 'invoice_info', lazy = 'dynamic')
+    payment_list = db.relationship('vendors_payment', backref = 'invoice_info', lazy = 'dynamic')
+    payment_description = db.Column(db.String, nullable=False)
+    
+
+    def __repr__(self):
+        return f'vendor_invoice({self.MCST_id},{self.vendor_name},{self.invoice_ref})'
+
+    
+    def outstanding_amt(self, as_on_period=date.today()):
+        return self.invoice_amt + sum(payment_obj.payment_amount for payment_obj in self.payment_list if payment_obj.payment_date <= as_on_period)
+            
+    # @outstanding_amt.expression
+    # def outstanding_amt(cls):
+    #     return db.session.query(vendors_payment.invoice_id==cls.id).all() + cls.invoice_amt
+    #     # func.sum(cls.invoice_amt,
+
+class vendors_payment(db.Model):
+    
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer,db.ForeignKey('vendors_invoice.id'))
+    payment_reference=  db.Column(db.String(120))
+    payment_type = db.Column(db.String(120))
+    payment_date = db.Column(db.Date)
+    payment_amount = db.Column (db.Float)
+
+    
+
+
+class vendors_gl(db.Model):
+
+    id = db.Column(db.Integer, primary_key=True)
+    vendor_invoice_id = db.Column(db.Integer,db.ForeignKey('vendors_invoice.id'))
     gl_account_code = db.Column(db.String(120))
     gl_entry_description = db.Column(db.String(120))
     gl_period_start = db.Column(db.String(120))
@@ -857,3 +951,96 @@ class function_list(db.Model):
             'function_desc':self.function_desc,
             'function_field_required':self.function_field_required,    
         }
+
+
+class portfolio_user(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    displayname = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    last_login = db.Column(db.DateTime)
+    ratings_records= db.relationship('ratings_record', backref='porfolio_user_info', lazy='dynamic')
+    testimonial_records= db.relationship('portfolio_testimonial', backref='porfolio_user_info', lazy='dynamic')
+
+    def rating_records_json(self):
+
+        rating_records = db.session.query(ratings_record.id, ratings_record.rating_score, ratings_record.portfolio_user_id, portfolio_project.project_name, 
+                        ratings_record.rating_type_id, rating_type.rating_name).\
+                        select_from(ratings_record).\
+                        join(portfolio_user,portfolio_user.id == ratings_record.portfolio_user_id).\
+                        join(portfolio_project,portfolio_project.id == ratings_record.portfolio_project_id).\
+                        join(rating_type,rating_type.id == ratings_record.rating_type_id).\
+                        filter(portfolio_user.id == self.id).all()
+        
+        return ([{key:getattr(ratings_record_query,key) for key in ratings_record_query.keys()} for ratings_record_query in rating_records])
+    
+    def to_json(self):
+        
+        return ({
+            'id':self.id,
+            'displayname':self.displayname,
+            'email':self.email,
+            'last_login':self.last_login,
+            'rating_records': self.rating_records_json()
+        })
+                
+
+    
+
+class portfolio_project(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    project_name = db.Column(db.String(120), nullable=False)
+    video_link = db.Column(db.String(120))
+    project_tag= db.Column(db.String(120))
+    ratings_records= db.relationship('ratings_record', backref='porfolio_project_info', lazy='dynamic')
+
+    def rating_list_to_json(self):
+
+        rating_list = db.session.query(func.avg(ratings_record.rating_score).label('average_score'), 
+                    ratings_record.rating_type_id, rating_type.rating_name, portfolio_project.project_name).\
+                    select_from(ratings_record).\
+                    join(rating_type, ratings_record.rating_type_id== rating_type.id).\
+                    join(portfolio_project, ratings_record.portfolio_project_id == portfolio_project.id).\
+                    group_by(ratings_record.rating_type_id, rating_type.rating_name, portfolio_project.project_name).\
+                    filter(portfolio_project.id ==  self.id).all()
+        
+        return ([{key:getattr(ratings_record_query,key) for key in ratings_record_query.keys()} for ratings_record_query in rating_list])
+
+    def to_json(self):
+        return ({
+            'id':self.id,
+            'project_name':self.project_name,
+            'video_link':self.video_link,
+            'project_tag':self.project_tag,
+            'rating_mean_score' : self.rating_list_to_json()
+        })
+
+class portfolio_testimonial(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    testimonial_text = db.Column(db.String(120))
+    testimonial_rating =  db.Column(db.Float)
+    testimonial_date = db.Column(db.DateTime)
+    portfolio_user_id = db.Column(db.Integer, db.ForeignKey('portfolio_user.id'), nullable=False) 
+
+    def to_json(self):
+        return ({
+        'id': self.id,
+        'testimonial_text': self.testimonial_text,
+        'testimonial_rating': self.testimonial_rating,
+        'testimonial_date': self.testimonial_date.strftime("%d/%m/%y"),
+        'testimonial_user': self.porfolio_user_info.displayname
+        })
+
+
+class rating_type(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rating_name = db.Column(db.String(120), nullable=False)
+    max_rating = db.Column(db.Integer)
+    ratings_records= db.relationship('ratings_record', backref='rating_type_info', lazy='dynamic')
+
+
+class ratings_record(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rating_score = db.Column(db.Integer)
+    portfolio_user_id = db.Column(db.Integer, db.ForeignKey('portfolio_user.id'), nullable=False)   
+    portfolio_project_id = db.Column(db.Integer, db.ForeignKey('portfolio_project.id'), nullable=False)   
+    rating_type_id = db.Column(db.Integer, db.ForeignKey('rating_type.id'), nullable=False)   

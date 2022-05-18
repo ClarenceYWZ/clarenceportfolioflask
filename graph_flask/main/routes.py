@@ -1,20 +1,30 @@
+from cmath import inf
 import os
 import re
 import uuid
+import requests
+import pathlib
+from urllib import parse
 from datetime import date
 from datetime import datetime
 from flask import Blueprint, render_template,request, redirect,url_for, session
 from flask.helpers import make_response
 from sqlalchemy import null, true
 from flask_mail import Message
+from pip._vendor import cachecontrol
+from oauthlib.oauth2 import WebApplicationClient
+from google.oauth2 import id_token
+from google_auth_oauthlib.flow import Flow
+import google.auth.transport.requests
 from graph_flask import mail
 from graph_flask.microsoft.utils import  require_microsoft_login, _build_auth_url
 from graph_flask.microsoft.utils import _get_token_from_cache ,_build_msal_app, _save_cache,_load_cache, microsoft_graph_api
 from graph_flask.microsoft.utils import folder_graph_api, group_permission_graph_api, teams_chat_graph_api
-from graph_flask.models import add_attendance_participant_register, form_question_records_details, form_sub_category, job_title_role, site_staff, smart_project_listing,User,db
+from graph_flask.models import add_attendance_participant_register, form_question_records_details, form_sub_category, job_title_role, portfolio_testimonial, rating_type, ratings_record, site_staff, smart_project_listing,User,db
 from graph_flask.models import user_project, stationary_type, stationary_usage, form_register,form_question_records_details
 from graph_flask.models import form_template, form_question_records, function_list, stationary_topup
 from graph_flask.models import Role, Job_title_role_relationship, attendance_register
+from graph_flask.models import portfolio_project, portfolio_user
 from graph_flask.main.utils import getMcstDetails, getMcstGstReg, jsonify_api_headers, update_sql_json
 from graph_flask.function_module.utils import invoicepaynowGenerate, printing_postage_report_generate
 from graph_flask.ar_module.utils import ar_graph_api
@@ -45,6 +55,7 @@ def login():
     # here we choose to also collect end user consent upfront
     auth_url = _build_auth_url(scopes=config.SCOPE, state=session["state"])
     return redirect(auth_url)
+
 
 @main.route("/logout")
 @cross_origin(supports_credentials=True)
@@ -89,40 +100,53 @@ def apitest():
     # email_list =[]
     crpyter = Fernet(os.environ.get('mcst_key'))
     attendance_id = crpyter.encrypt(str(1).encode('utf-8')).decode('utf-8')    
-    # msg = Message( recipients=["clarence.yeo@smartproperty.sg"], sender="administrator@smartproperty.sg"
+    # msg = Message( recipients=["dawn.lim@smartproperty.sg, joan.chua@smartproperty.sg, urai.songwatana@smartproperty.sg"], sender="clarence.yeo@smartproperty.sg")
+    # msg.subject = f'OUTCOME-BASED CONTRACTING (OBC) FOR SECURITY SERVICES WEBINAR'
+    # msg.html = template_html
+    # mail.send(msg)
+    recipients=["dawn.lim@smartproperty.sg", "joan.chua@smartproperty.sg", "urai.songwatana@smartproperty.sg"]
     # )    
     
-    for project_item in smart_project_listing.query.filter(smart_project_listing.TERMINATED_DATE >= date.today()).all():
-        for site_staff_item in project_item.site_staff_list:
-            print (site_staff_item)
-            email_encrypt = crpyter.encrypt(site_staff_item.site_email.encode('utf-8')).decode('utf-8')    
-            url_link = f'https://smartsgportal.azurewebsites.net/#/public/attendancechecklist/{attendance_id}/{email_encrypt}'
-            # msg = Message( recipients=[site_staff_item.site_email], sender="clarence.yeo@smartproperty.sg")
-            msg = Message( recipients=["clarence.yeo@smartproperty.sg"], sender="clarence.yeo@smartproperty.sg")
-            msg.subject = f'OUTCOME-BASED CONTRACTING (OBC) FOR SECURITY SERVICES WEBINAR'
-            msg.html = template_html.replace("***url***", url_link)
-            mail.send(msg)
-        break
+    # for project_item in smart_project_listing.query.filter(smart_project_listing.TERMINATED_DATE >= date.today()).all():
+    #     for site_staff_item in project_item.site_staff_list:
+    #         print (site_staff_item)
+    #         email_encrypt = crpyter.encrypt(site_staff_item.site_email.encode('utf-8')).decode('utf-8')    
+    #         url_link = f'https://smartsgportal.azurewebsites.net/#/public/attendancechecklist/{attendance_id}/{email_encrypt}'
+    #         msg = Message( recipients=[site_staff_item.site_email], sender="clarence.yeo@smartproperty.sg")
+    
+    #         msg.subject = f'OUTCOME-BASED CONTRACTING (OBC) FOR SECURITY SERVICES WEBINAR'
+    #         msg.html = template_html.replace("***url***", url_link)
+    #         # mail.send(msg)
         
-    for user_item in User.query.join(job_title_role).filter(User.termination_date == None, job_title_role.Department == "Operations").all():
+        
+    for user_item in recipients:
             print (user_item)
-            email_encrypt = crpyter.encrypt(user_item.email.encode('utf-8')).decode('utf-8')    
+            email_encrypt = crpyter.encrypt(user_item.encode('utf-8')).decode('utf-8')    
             url_link = f'https://smartsgportal.azurewebsites.net/#/public/attendancechecklist/{attendance_id}/{email_encrypt}'
-            # msg = Message( recipients=[user_item.email], sender="clarence.yeo@smartproperty.sg")
-            msg = Message( recipients=["clarence.yeo@smartproperty.sg"], sender="clarence.yeo@smartproperty.sg")
+            msg = Message( recipients=[user_item], sender="clarence.yeo@smartproperty.sg")
+            # msg = Message( recipients=["clarence.yeo@smartproperty.sg"], sender="clarence.yeo@smartproperty.sg")
             msg.subject = f'OUTCOME-BASED CONTRACTING (OBC) FOR SECURITY SERVICES WEBINAR'
             msg.html = template_html.replace("***url***", url_link)
-            mail.send(msg)
-            break
+            # mail.send(msg)
+
+    # email_encrypt = crpyter.encrypt("claire.chan@smartproperty.sg".encode('utf-8')).decode('utf-8')    
+    # url_link = f'https://smartsgportal.azurewebsites.net/#/public/attendancechecklist/{attendance_id}/{email_encrypt}'
+    # msg = Message( recipients=["claire.chan@smartproperty.sg"], sender="clarence.yeo@smartproperty.sg")
+    # # msg = Message( recipients=["clarence.yeo@smartproperty.sg"], sender="clarence.yeo@smartproperty.sg")
+    # msg.subject = f'OUTCOME-BASED CONTRACTING (OBC) FOR SECURITY SERVICES WEBINAR'
+    # msg.html = template_html.replace("***url***", url_link)
+    # mail.send(msg)
 
     # testing = microsoft_graph_api()
     # result = testing.get_user_id_by_email("clarence.yeo@smartproperty.sg")
     return {}
 
+
 @main.route("/main_dashboard")
-@require_microsoft_login
+# @require_microsoft_login
 @cross_origin(supports_credentials=True)
 def main_dashboard():
+    print (request.data)
     # if Pending_form.is_submitted():
     #     if Pending_form.File_uploaded.data == None:
     #         flash('No file is selected, click choose file to upload file', 'danger')
@@ -298,7 +322,9 @@ def apiprojectinfoupdate():
                         f'Ops In Charge: {enquire_project.operations_in_charge} <br>'\
                         f'Accts In Charge: {enquire_project.accounts_in_charge}'
             message_graph_api.send_group_message(group_message_id=message_graph_api.remove_project_chat_group_id, message_body=message_body)
-        
+        for site_staff_obj in enquire_project.site_staff_list :
+             microsoft_api.delete_user(user_email=site_staff_obj.site_email , guest_bool=True)
+             db.session.delete(site_staff_obj)
         microsoft_api.update_mcst_list_item(request_data['id'], graph_fields)
     db.session.commit()
 
@@ -363,6 +389,46 @@ def projectadduser():
     db.session.add(user_project_entry)
     db.session.commit()
     return jsonify_api_headers({'result':'user added successfully'})
+
+
+@main.route("/api/projecttransferuser", methods=['POST'])
+@require_microsoft_login
+@cross_origin(supports_credentials=True)
+def projecttransferuser():
+
+    request_data = json.loads(request.data)
+    request_value = json.loads(request_data['value'])
+    old_user = request_value['old_user']
+    transfer_user= User.query.filter_by(displayname=request_value['transfer_user']).first()
+    print (transfer_user, request_value['transfer_user'])
+    selected_user = User.query.filter_by(displayname= old_user).first()
+    print (old_user,selected_user)
+    
+    microsoft_api = group_permission_graph_api()
+    for project_obj in selected_user.project_list:
+        if "accounts" in selected_user.jobTitle.lower():
+            fields = {
+            'ACCOUNTS_INCHARGE' : transfer_user.displayname
+            }
+            microsoft_api.update_mcst_list_item(project_obj.PRINTER_CODE, fields) 
+        else:
+
+            for user in transfer_user.get_all_child_users(): 
+                microsoft_api.add_folder_permission_user(project_obj.PRINTER_CODE,user.id)
+            for user in selected_user.get_all_child_users():
+                
+                microsoft_api.delete_folder_permission_user(project_obj.PRINTER_CODE,user.id)
+        user_project_entry = user_project(user_id=transfer_user.employee_id,
+                                project_id=project_obj.PRINTER_CODE)
+        db.session.add(user_project_entry)
+        user_project_entry = user_project.query.filter_by(user_id=selected_user.employee_id,
+                                                    project_id=project_obj.PRINTER_CODE).first()
+        db.session.delete(user_project_entry)
+    db.session.commit()
+    return jsonify_api_headers({'result':f'transfer from {selected_user.displayname} ' \
+                                f'to {transfer_user.displayname} is sucessful'})
+
+
 
 @main.route("/api/addsitestaffuser", methods=['POST'])
 @require_microsoft_login
@@ -738,5 +804,164 @@ def functiongenerate():
         report_month = request_data['monthdate']
         result = printing_postage_report_generate(report_month=report_month)
     return  jsonify_api_headers(result)
-
     
+@main.route("/linkedinlogin")
+def linkedinlogin():
+    response_type = "code"
+    session["state"] = str(uuid.uuid4())
+    auth_url = f'https://www.linkedin.com/oauth/v2/authorization?response_type={response_type}&scope={config.linkedin_SCOPE}&client_id={config.linkedin_client_id}&redirect_uri={parse.quote(config.linkedin_redirect_uri)}'
+    return redirect(auth_url)
+
+@main.route("/linkedinauthorized")
+def linkedin_authorized():
+    code = request.args.get('code')
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
+    data = {
+        'grant_type':'authorization_code',
+        'code':f'{code}',
+        'redirect_uri':config.linkedin_redirect_uri,
+        # 'redirect_uri':f'http://localhost:5000/linkedinauthorized',
+        'client_id':config.linkedin_client_id,
+        'client_secret':config.linkedin_client_secret,
+     }
+    
+    token_url = f'https://www.linkedin.com/oauth/v2/accessToken'
+    result = requests.post(url=token_url,headers=headers,params=data)
+    result_json = result.json()
+ 
+    return redirect(f"http://localhost:3000/linkedin/{result_json['access_token']}" , code =307)
+
+@main.route("/emailauthorized" , methods=['POST'])
+def emailauthorized():
+    request_data = json.loads(request.data)
+    email, display_name = json.loads(request_data['value']).values()
+    crpyter = Fernet(os.environ.get('portfolio_key'))
+    encryptUrl = crpyter.encrypt(f'{email}%{display_name}'.encode('utf-8')).decode('utf-8')
+  
+    return jsonify_api_headers({"encryptUrl":encryptUrl})
+       
+@main.route("/getPorfolioProjects")
+def getPorfolioProjects():
+    
+    PorfolioProjects = portfolio_project.query.all()
+    return jsonify_api_headers([PorfolioProject.to_json() for PorfolioProject in PorfolioProjects])
+
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+
+GOOGLE_CLIENT_ID = config.GOOGLE_CLIENT_ID
+client_secrets_file = os.path.join(pathlib.Path(__file__).parent, "client_secret.json")
+
+
+flow = Flow.from_client_secrets_file(
+    client_secrets_file=client_secrets_file,
+    scopes=["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email", "openid"],
+    redirect_uri="http://localhost:5000/googleauthorized"
+)
+
+
+@main.route("/googlelogin")
+def googlelogin():
+    
+    authorization_url, state = flow.authorization_url()
+    session["state"] = state
+    return redirect(authorization_url)
+
+@main.route("/googleauthorized")
+def google_authorized():
+    
+    print("client_secrets_file", client_secrets_file)
+    flow.fetch_token(authorization_response=request.url)
+    
+    if not session["state"] == request.args["state"]:
+        abort(500)  # State does not match!
+
+    credentials = flow.credentials
+    
+    return redirect(f"http://localhost:3000/google/{credentials._id_token}" , code =307)
+
+
+@main.route("/getUserProfile", methods=['POST'])
+def getUserProfile():
+
+    request_data = json.loads(request.data)
+    login_type, token_id = json.loads(request_data['value']).values()
+    if login_type == "linkedin":
+        info_url = f'https://api.linkedin.com/v2/me'
+        
+        info_headers ={
+            'Authorization': f'Bearer { token_id}'
+        }
+        info_result = requests.get(url=info_url,headers=info_headers)
+        if info_result.json().get("message") : return jsonify_api_headers("error")
+        result_dict = info_result.json()
+        displayname = f"{result_dict['localizedFirstName']} {result_dict['localizedLastName']} "
+        info_url = f'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))'
+        info_result = requests.get(url=info_url,headers=info_headers)
+        result_dict = info_result.json()
+        email = result_dict['elements'][0]['handle~']['emailAddress']
+    elif login_type=="google":
+        request_session = requests.session()
+        cached_session = cachecontrol.CacheControl(request_session)
+        token_request = google.auth.transport.requests.Request(session=cached_session)
+        id_info = id_token.verify_oauth2_token(
+            id_token=token_id,
+            request=token_request,
+            audience=GOOGLE_CLIENT_ID
+        )
+        email = id_info.get('email')
+        displayname = id_info.get('name')
+    elif login_type=="email":
+        crpyter = Fernet(os.environ.get('portfolio_key'))
+        email, displayname = crpyter.decrypt(token_id.encode('utf-8')).decode('utf-8').split("%")
+        
+    
+    login_user = portfolio_user.query.filter_by(email = email).first()
+    if not login_user: 
+        login_user = portfolio_user(displayname=displayname, email=email)
+        db.session.add(login_user)
+        db.session.commit()
+    
+    login_user.last_login = datetime.now()
+    db.session.commit()
+    return jsonify_api_headers(login_user.to_json())
+
+
+@main.route("/getTestimonial")
+def getTestimonial():
+
+    testimonial_list = portfolio_testimonial.query.all()
+    return jsonify_api_headers([testimonial_obj.to_json() for testimonial_obj in testimonial_list])
+
+@main.route("/postTestimonial", methods=['POST'])
+def postTestimonial():
+
+    request_data = json.loads(request.data)
+    testimonial_dict = json.loads(request_data['value'])
+    print (testimonial_dict)
+    testimonial_entry= portfolio_testimonial(portfolio_user_id= testimonial_dict['portfolio_user_id'], 
+                        testimonial_text=testimonial_dict['testimonial_text'],
+                        testimonial_rating = testimonial_dict['testimonial_rating'],
+                        testimonial_date= datetime.now())
+    db.session.add(testimonial_entry)                        
+    db.session.commit()
+
+    return jsonify_api_headers({"result": "successful"})
+
+@main.route("/postPortfolioRating", methods=['POST'])
+def postPortfolioRating():
+
+    request_data = json.loads(request.data)
+    portfolio_user_id, portfolio_project_id, rating_dict = json.loads(request_data['value']).values()
+    print (portfolio_user_id, portfolio_project_id, rating_dict)
+    for key, rating in rating_dict.items():
+        rating_type_id = rating_type.query.filter(rating_type.rating_name== key).first().id
+        rating_record_obj = ratings_record(rating_score=rating,
+                            portfolio_user_id= portfolio_user_id,
+                            portfolio_project_id = portfolio_project_id,
+                            rating_type_id =rating_type_id)
+        db.session.add(rating_record_obj)                        
+    db.session.commit()
+
+    return jsonify_api_headers({"result": "successful"})
